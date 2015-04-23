@@ -1,7 +1,10 @@
 package com.tivamo.broadcast.kurento;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+
+import jersey.repackaged.com.google.common.collect.Lists;
 
 import org.eclipse.jetty.websocket.api.Session;
 import org.kurento.client.MediaPipeline;
@@ -53,7 +56,7 @@ public class BroadcastRoom {
 			if(masterUserSession!=null){
 				//create a user session.
 				UserSession viewer = new UserSession(session);
-				viewers.put(session.getRemote().toString(), viewer);
+				viewers.put(session.toString(), viewer);
 
 				//get sdp offer from client
 				String sdpOffer = jsonMessage.getAsJsonPrimitive("sdpOffer")
@@ -141,32 +144,70 @@ public class BroadcastRoom {
 		}
 	}
 
-	public void stopClient(WebSocketSession session) {
+	private void stopMaster(){
+		log.info("Releasing media pipeline");
+		masterUserSession.getWebRtcEndpoint().release();
+		masterUserSession = null;
+		for (UserSession viewer : viewers.values() ){
 
-		//if master is stopping then remove all viewers and inform them.
-		if( masterUserSession!=null 
-				&& masterUserSession.getSession().getRemote().toString().equalsIgnoreCase(session.getId())){
-
-			log.info("Releasing media pipeline");
-			masterUserSession.getWebRtcEndpoint().release();
-			masterUserSession = null;
-			for (UserSession viewer : viewers.values() ){
-
-				JsonObject response = new JsonObject();
-				response.addProperty("id", "stopCommunication");
-				try {
-					viewer.sendMessage(response);
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
-				viewer.getWebRtcEndpoint().release();
+			JsonObject response = new JsonObject();
+			response.addProperty("id", "stopCommunication");
+			try {
+				viewer.sendMessage(response);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
-			viewers = Maps.newHashMap();
+
+			viewer.getWebRtcEndpoint().release();
+		}
+		viewers = Maps.newHashMap();
+	}
+	
+	public void stopClient(Session session) {
+
+		String searchKey;
+		if(session.isOpen()){
+			 searchKey = session.getRemote().toString();
 		}else{
-			if(viewers.containsKey(session.getId())){
-				viewers.remove(session.getId());
+			//this can happen when user refreshes the browser or wifi dces
+			searchKey = null;
+		}
+		
+		//if master is stopping then remove all viewers and inform them.
+		if( searchKey != null && masterUserSession!=null 
+				&& masterUserSession.getSession().getRemote().toString().equalsIgnoreCase(searchKey)){
+			stopMaster();
+			
+		}else{
+			if(searchKey != null && viewers.containsKey(searchKey)){
+				UserSession viewer = viewers.get(searchKey);
+				viewer.getWebRtcEndpoint().release();
+				viewers.remove(searchKey);
+			}
+		}
+		
+		if(searchKey == null){
+			//check if master is dead.
+			if(masterUserSession != null && !masterUserSession.getSession().isOpen() ){
+				stopMaster();
+			}
+			
+			
+			//check all the viewers and remove the dead viewer
+			List<String> toRemove = Lists.newArrayList();
+			for (String key : viewers.keySet() ){
+				UserSession viewer = viewers.get(key);
+				if(!viewer.getSession().isOpen()){
+					viewer.getWebRtcEndpoint().release();
+					toRemove.add(key);
+				}
+			}
+			
+			
+			//remove all dead viewers
+			for (String key : toRemove ){
+				viewers.remove(key);
 			}
 		}
 	}
