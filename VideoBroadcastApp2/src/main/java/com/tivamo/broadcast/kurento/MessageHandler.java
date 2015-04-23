@@ -24,22 +24,11 @@ public class MessageHandler {
 	private static final Gson gson = new GsonBuilder().create();
 
 
-	/**
-	 *  Live chat rooms which are either active or were active.
-	 */
-	private Map<String , BroadcastRoom> activeRooms = Maps.newHashMap();
 
 
-	/**
-	 *  Connection of KMS.
-	 */
-	private KurentoClient kurento;
 
 	private static MessageHandler _instance = null;
 
-	static {
-		MessageHandler.getInstance();
-	}
 
 	public static MessageHandler getInstance() {
 		if(_instance == null){
@@ -49,9 +38,6 @@ public class MessageHandler {
 		return _instance;
 	}
 
-	private MessageHandler() {
-		kurento = KurentoClient.create ("ws://192.168.0.114:8888/kurento");
-	}
 
 	public void handleTextMessage(Session session, String message)
 			throws Exception {
@@ -77,15 +63,6 @@ public class MessageHandler {
 			log.error("****check room name in incoming message got null.");
 		}
 
-		if(roomName != null && !activeRooms.containsKey(roomName)){
-			//create a new pipeline.
-			//create a room object
-			MediaPipeline roomPipeline = kurento.createMediaPipeline();
-			log.debug("Creating a new room object name=="+roomName);
-			BroadcastRoom roomObject = new BroadcastRoom(roomName , roomPipeline);
-			activeRooms.put(roomName, roomObject);
-
-		}
 
 		switch (jsonMessage.get("id").getAsString()) {
 		case "master":
@@ -113,32 +90,21 @@ public class MessageHandler {
 
 	private synchronized void master(Session session,
 			JsonObject jsonMessage) throws IOException {
-
-		String roomName = jsonMessage.getAsJsonPrimitive("room").getAsString();
-		BroadcastRoom roomObject = activeRooms.get(roomName);
-
-		roomObject.addBroadcaster(session, jsonMessage);
+		
+		KurentoClientInstance kurentoInstance = KurentoManager.getInstance().getInstanceForPublish();
+		kurentoInstance.addBroadcaster(session, jsonMessage);
 	}
 
 	private synchronized void viewer(Session session,
 			JsonObject jsonMessage) throws IOException {
-		String roomName = jsonMessage.getAsJsonPrimitive("room").getAsString();
-		BroadcastRoom roomObject = activeRooms.get(roomName);
-
-		roomObject.addViewer(session, jsonMessage);
+		KurentoClientInstance kurentoInstance = KurentoManager.getInstance().getInstanceForConsume();
+		kurentoInstance.addViewer(session, jsonMessage);
 	}
 
 	private synchronized void stop(Session session , String roomName ) throws IOException {
 
-		if(roomName != null){
-			activeRooms.get(roomName).stopClient(session);
-		}else{
-			//try in all rooms
-			for (BroadcastRoom room : activeRooms.values()){
-				room.stopClient(session);
-			}
-		}
-
+		KurentoClientInstance kurentoInstance = KurentoManager.getInstance().getInstanceForConsume();
+		kurentoInstance.stopSession(session, roomName);
 
 	}
 

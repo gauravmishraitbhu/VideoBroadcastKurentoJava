@@ -18,15 +18,20 @@ import org.springframework.web.socket.WebSocketSession;
 import com.google.common.collect.Maps;
 import com.google.gson.JsonObject;
 
-public class BroadcastRoom {
+/** each instance of this class represents one stream. adding of viewers / broadcasters of stream is handled
+ * by this class.
+ * @author gaurav.
+ *
+ */
+public class MediaStream {
 
 	private static final Logger log = LoggerFactory
-			.getLogger(BroadcastRoom.class);
+			.getLogger(MediaStream.class);
 
 	/**
 	 *  name of stream ie myStream.
 	 */
-	private String roomName;
+	private String streamName;
 
 	/**
 	 * pipeline to which this broadcast room belongs.
@@ -44,8 +49,8 @@ public class BroadcastRoom {
 	private Map<String,UserSession> viewers = Maps.newHashMap();
 
 
-	public BroadcastRoom(String roomName , MediaPipeline pipeline){
-		this.roomName = roomName;
+	public MediaStream(String roomName , MediaPipeline pipeline){
+		this.streamName = roomName;
 		this.pipeline = pipeline;
 	}
 
@@ -210,5 +215,13 @@ public class BroadcastRoom {
 				viewers.remove(key);
 			}
 		}
+	}
+	
+	
+	/**
+	 * @return returns true when stream is live else return false
+	 */
+	public boolean isActive() {
+		return masterUserSession != null ? true : false;
 	}
 }
