@@ -1,4 +1,4 @@
-package com.tivamo.broadcast.kurento;
+package com.tivamo.broadcast.kurento.stream;
 
 import java.io.IOException;
 import java.util.List;
@@ -17,9 +17,10 @@ import org.springframework.web.socket.WebSocketSession;
 
 import com.google.common.collect.Maps;
 import com.google.gson.JsonObject;
+import com.tivamo.broadcast.kurento.session.UserSession;
 
-/** each instance of this class represents one stream. adding of viewers / broadcasters of stream is handled
- * by this class.
+/** each instance of this class represents one stream. adding of viewers / broadcasters of stream is handled.
+ * by this class. This instance will be created on origin server.
  * @author gaurav.
  *
  */
@@ -31,22 +32,34 @@ public class MediaStream {
 	/**
 	 *  name of stream ie myStream.
 	 */
-	private String streamName;
+	protected String streamName;
+
+	
 
 	/**
 	 * pipeline to which this broadcast room belongs.
 	 */
-	private  MediaPipeline pipeline;
+	protected  MediaPipeline pipeline;
 
 	/**
 	 * broadcaster
 	 */
-	private UserSession masterUserSession;
+	protected UserSession masterUserSession;
+	
+	/**
+	 *  master webrtc will be connected to this.
+	 *  this can be used to create relays.
+	 */
+	protected RtpEndpoint rtpSink;
+
+
+
 
 	/**
-	 * viewers conected to current room.
+	 * viewers conected to current room. maps a unique string (UserSession.getRemote().toString()) 
+	 * vs UserSession Object
 	 */
-	private Map<String,UserSession> viewers = Maps.newHashMap();
+	protected Map<String,UserSession> viewers = Maps.newHashMap();
 
 
 	public MediaStream(String roomName , MediaPipeline pipeline){
@@ -55,6 +68,14 @@ public class MediaStream {
 	}
 
 
+	/** adds a new viewer to current stream. creates a new WebRTC endpoint does sdp 
+	 * negotation and connect the masters webrtc point to the newly create one.
+	 * 
+	 * If master is not online then connection is rejected and this function does nothing.
+	 * @param session
+	 * @param jsonMessage
+	 * @throws IOException
+	 */
 	public void addViewer(Session session,JsonObject jsonMessage) throws IOException{
 		try{
 
@@ -102,7 +123,12 @@ public class MediaStream {
 		}
 	}
 
-	public void addBroadcaster(Session session,JsonObject jsonMessage) throws IOException {
+	/** Adds a broadcaster for current stream. if broadcaster is already live then call fails.
+	 * @param session - can be null in case of RelaySession.
+	 * @param jsonMessage - can be null in case of RelaySession.
+	 * @throws IOException
+	 */
+	public void addMaster(Session session,JsonObject jsonMessage) throws IOException {
 
 		try{
 			if (masterUserSession == null) {
@@ -128,7 +154,8 @@ public class MediaStream {
 				response.addProperty("response", "accepted");
 				response.addProperty("sdpAnswer", sdpAnswer);
 				masterUserSession.sendMessage(response);
-				RtpEndpoint end = new RtpEndpoint.Builder(pipeline).build();
+				rtpSink = new RtpEndpoint.Builder(pipeline).build();
+				masterUserSession.getWebRtcEndpoint().connect(rtpSink);
 
 			} else {
 				JsonObject response = new JsonObject();
@@ -149,7 +176,7 @@ public class MediaStream {
 		}
 	}
 
-	private void stopMaster(){
+	protected void stopMaster(){
 		log.info("Releasing media pipeline");
 		masterUserSession.getWebRtcEndpoint().release();
 		masterUserSession = null;
@@ -217,11 +244,36 @@ public class MediaStream {
 		}
 	}
 	
+	public RtpEndpoint getRtpSink() {
+		return rtpSink;
+	}
+
+
+	public void setRtpSink(RtpEndpoint rtpSink) {
+		this.rtpSink = rtpSink;
+	}
+	
+	public String getStreamName() {
+		return streamName;
+	}
+
+
 	
 	/**
 	 * @return returns true when stream is live else return false
 	 */
 	public boolean isActive() {
 		return masterUserSession != null ? true : false;
+	}
+	
+	/**
+	 * @return true if the current instance is a relay stream.
+	 */
+	public boolean isRelayStream() {
+		if(this instanceof RelayStream ) {
+			return true;
+		}else{
+			return false;
+		}
 	}
 }

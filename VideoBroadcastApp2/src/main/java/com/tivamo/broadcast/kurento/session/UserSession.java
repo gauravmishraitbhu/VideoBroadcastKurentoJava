@@ -12,7 +12,7 @@
  * Lesser General Public License for more details.
  *
  */
-package com.tivamo.broadcast.kurento;
+package com.tivamo.broadcast.kurento.session;
 
 import java.io.IOException;
 

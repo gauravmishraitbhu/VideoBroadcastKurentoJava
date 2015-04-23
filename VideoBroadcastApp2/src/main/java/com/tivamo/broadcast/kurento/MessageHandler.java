@@ -4,14 +4,10 @@ import java.io.IOException;
 import java.util.Map;
 
 import org.eclipse.jetty.websocket.api.Session;
-import org.eclipse.jetty.websocket.common.WebSocketSession;
-import org.kurento.client.KurentoClient;
-import org.kurento.client.MediaPipeline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.TextMessage;
 
-import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
