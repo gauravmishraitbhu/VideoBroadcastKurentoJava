@@ -92,7 +92,7 @@ public class MessageHandler {
 	}
 
 	private synchronized void viewer(Session session,
-			JsonObject jsonMessage) throws IOException {
+			JsonObject jsonMessage) throws Exception {
 		KurentoClientInstance kurentoInstance = KurentoManager.getInstance().getInstanceForConsume();
 		kurentoInstance.addViewer(session, jsonMessage);
 	}

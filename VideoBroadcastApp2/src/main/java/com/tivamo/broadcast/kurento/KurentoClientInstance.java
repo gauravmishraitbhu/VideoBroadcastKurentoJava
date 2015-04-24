@@ -66,21 +66,53 @@ public class KurentoClientInstance {
 		
 		//FIXME this should be triggred when a viewer connects to a server
 		//on which stream is not being published.
-		KurentoManager.getInstance().createRelay(streamName);
+		//KurentoManager.getInstance().createRelay(streamName);
 	}
 	
 	
 	/** to be called when a user wants to consume stream.
 	 * @param session
 	 * @param jsonMessage
-	 * @throws IOException
+	 * @throws Exception 
 	 */
-	public void addViewer (Session session ,JsonObject jsonMessage) throws IOException {
+	public void addViewer (Session session ,JsonObject jsonMessage) throws Exception {
 		
-		String roomName = jsonMessage.getAsJsonPrimitive("room").getAsString();
-		MediaStream roomObject = activeStreams.get(roomName);
+		
+		String streamName = jsonMessage.getAsJsonPrimitive("room").getAsString();
+		
+		if(KurentoManager.getInstance().getOrigin(streamName) != null){
+			//this means stream is live.
+			
+			if(isOriginForStream(streamName)){
+				//stream is being published on current KMS client
+				MediaStream roomObject = activeStreams.get(streamName);
 
-		roomObject.addViewer(session, jsonMessage);
+				roomObject.addViewer(session, jsonMessage);
+			}else{
+				//get the origin client and create a relay between origin and this one.
+				
+				if(!activeStreams.containsKey(streamName)){
+					KurentoClientInstance origin = KurentoManager.getInstance().getOrigin(streamName);
+					
+					//create the relay stream instance
+					KurentoManager.getInstance().createRelay(origin , this , streamName);
+				}
+				MediaStream relayStream = activeStreams.get(streamName);
+				relayStream.addViewer(session, jsonMessage);
+				
+			}
+			
+			
+		}else{
+			JsonObject response = new JsonObject();
+			response.addProperty("id", "viewerResponse");
+			response.addProperty("response", "rejected");
+			response.addProperty("message", "broadcaster is not live yet");
+			session.getRemote().sendString(response.toString());
+		}
+		
+		
+		
 	}
 	
 	/** Either clicked on stop or browser refresh. 
